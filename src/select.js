@@ -420,7 +420,7 @@
     ctrl.noResultsMessage = function() {
       if (ctrl.search.length < ctrl.minimumInputLength) {
 	      var n = ctrl.minimumInputLength - ctrl.search.length;
-        return "Please enter " + n + " or more character" + (n == 1 ? "" : "s");;
+        return "Please enter " + n + " or more character" + (n == 1 ? "" : "s");
       }
       return "No matches found";
     };
@@ -759,18 +759,13 @@
 
 
         scope.$watch('searchEnabled', function() {
-            var searchEnabled = scope.$eval(attrs.searchEnabled);
-          $select.searchEnabled = searchEnabled !== undefined ? searchEnabled : true;
+          var searchEnabled = scope.$eval(attrs.searchEnabled);
+          $select.searchEnabled = searchEnabled !== undefined ? searchEnabled : uiSelectConfig.searchEnabled;
         });
 
         scope.$watch('minimumInputLength', function() {
           var minimumInputLength = scope.$eval(attrs.minimumInputLength);
           $select.minimumInputLength = minimumInputLength !== undefined ? minimumInputLength : uiSelectConfig.minimumInputLength;
-        });
-
-        scope.$watch('locale', function() {
-          var locale = scope.$eval(attrs.locale);
-          $select.locale = locale !== undefined ? locale : uiSelectConfig.locale;
         });
 
         attrs.$observe('disabled', function() {

@@ -124,7 +124,7 @@ describe('ui-select tests', function() {
     var $select = el.scope().$select;
     $select.open = true;
     scope.$digest();
-  };
+  }
 
 
   // Tests
@@ -1444,7 +1444,6 @@ describe('ui-select tests', function() {
 
     });
 
-
     it('should run $formatters when changing model directly', function () {
 
       scope.selection.selectedMultiple = ['wladimir@email.com', 'samantha@email.com'];
@@ -1530,6 +1529,75 @@ describe('ui-select tests', function() {
         expect(el.scope().$select.searchEnabled).not.toBe(true);
       });
 
+    });
+
+  });
+
+  describe("min-input-length", function () {
+
+    function createUiSelectMinInputLength(len) {
+      return compileTemplate(
+        '<ui-select ng-model="selection.selected" \
+				minimum-input-length="' + len + '"> \
+  <ui-select-match> \
+  </ui-select-match> \
+  <ui-select-choices repeat="person in people | filter: $select.search" \
+  refresh="fetchFromServer($select.search)" refresh-delay="0"> \
+  <div ng-bind-html="person.name | highlight: $select.search"></div> \
+  <div ng-if="person.name==\'Wladimir\'"> \
+  <span class="only-once">I should appear only once</span>\
+  </div> \
+  </ui-select-choices> \
+  </ui-select>'
+      );
+    }
+
+    function partial(fn) {
+	    var args = Array.prototype.slice.call(arguments, 1);
+	    return function() {
+		    return fn.apply(null, args.concat(Array.prototype.slice.call(arguments, 0)));
+      }
+    }
+
+    function enterSearch(el, s, value) {
+      el.scope().$select.search = value;
+      s.$digest();
+    }
+
+    it("should call refresh when minimum length is setup", function () {
+      var el = createUiSelectMinInputLength(3);
+      var doSearch = partial(enterSearch, el, scope);
+
+      scope.fetchFromServer = function () {};
+      spyOn(scope, 'fetchFromServer');
+
+      doSearch('ad');
+      expect(scope.fetchFromServer).not.toHaveBeenCalled();
+
+      doSearch('ada');
+
+      $timeout.flush();
+
+      expect(scope.fetchFromServer.calls.count()).toEqual(1);
+      expect(scope.fetchFromServer).toHaveBeenCalledWith('ada');
+    });
+
+
+    it('should not call refresh when under min input length', function () {
+      var el = createUiSelectMinInputLength(3);
+      var doSearch = partial(enterSearch, el, scope);
+
+      scope.fetchFromServer = function () {};
+      spyOn(scope, 'fetchFromServer');
+
+      doSearch('ad');
+      doSearch('a');
+      doSearch('ad');
+      doSearch('');
+
+      $timeout.flush();
+
+      expect(scope.fetchFromServer).not.toHaveBeenCalled();
     });
 
   });

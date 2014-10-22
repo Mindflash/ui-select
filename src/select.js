@@ -67,7 +67,8 @@
     theme: 'bootstrap',
     searchEnabled: true,
     placeholder: '', // Empty by default, like HTML tag <select>
-    refreshDelay: 1000 // In milliseconds
+    refreshDelay: 1000, // In milliseconds
+    minimumInputLength: 0 // No minimum input length for search
   })
 
   // See Rename minErr and make it accessible from outside https://github.com/angular/angular.js/issues/6913
@@ -152,7 +153,8 @@
     ctrl.selected = undefined;
     ctrl.open = false;
     ctrl.focus = false;
-    ctrl.focusser = undefined; //Reference to input element used to handle focus events  
+    ctrl.minimumInputLength = undefined; // Minimum input length before search is triggered
+    ctrl.focusser = undefined; //Reference to input element used to handle focus events
     ctrl.disabled = undefined; // Initialized inside uiSelect directive link function
     ctrl.searchEnabled = undefined; // Initialized inside uiSelect directive link function
     ctrl.resetSearchInput = undefined; // Initialized inside uiSelect directive link function
@@ -204,6 +206,31 @@
       })[0];
     };
 
+    ctrl.refreshItems = function(items) {
+      if (items === undefined || items === null) {
+        // If the user specifies undefined or null => reset the collection
+        // Special case: items can be undefined if the user did not initialized the collection on the scope
+        // i.e $scope.addresses = [] is missing
+        ctrl.items = [];
+      } else {
+        if (!angular.isArray(items)) {
+          throw uiSelectMinErr('items', "Expected an array but got '{0}'.", items);
+        } else {
+          if (ctrl.search.length < ctrl.minimumInputLength) {
+            items = [];
+          }
+          if (ctrl.multiple){
+            //Remove already selected items (ex: while searching)
+            var filteredItems = items.filter(function(i) {return ctrl.selected.indexOf(i) < 0;});
+            ctrl.setItemsFn(filteredItems);
+          }else{
+            ctrl.setItemsFn(items);
+          }
+          ctrl.ngModel.$modelValue = null; //Force scope model value and ngModel value to be out of sync to re-run formatters
+        }
+      }
+    };
+
     ctrl.parseRepeatAttr = function(repeatAttr, groupByExp) {
       function updateGroups(items) {
         ctrl.groups = [];
@@ -228,7 +255,7 @@
         ctrl.items = items;
       }
 
-      var setItemsFn = groupByExp ? updateGroups : setPlainItems;
+      ctrl.setItemsFn = groupByExp ? updateGroups : setPlainItems;
 
       ctrl.parserResult = RepeatParser.parse(repeatAttr);
 
@@ -236,40 +263,17 @@
       ctrl.itemProperty = ctrl.parserResult.itemName;
 
       // See https://github.com/angular/angular.js/blob/v1.2.15/src/ng/directive/ngRepeat.js#L259
-      $scope.$watchCollection(ctrl.parserResult.source, function(items) {
-
-        if (items === undefined || items === null) {
-          // If the user specifies undefined or null => reset the collection
-          // Special case: items can be undefined if the user did not initialized the collection on the scope
-          // i.e $scope.addresses = [] is missing
-          ctrl.items = [];
-        } else {
-          if (!angular.isArray(items)) {
-            throw uiSelectMinErr('items', "Expected an array but got '{0}'.", items);
-          } else {
-            if (ctrl.multiple){
-              //Remove already selected items (ex: while searching)
-              var filteredItems = items.filter(function(i) {return ctrl.selected.indexOf(i) < 0;});
-              setItemsFn(filteredItems);
-            }else{
-              setItemsFn(items);              
-            }
-            ctrl.ngModel.$modelValue = null; //Force scope model value and ngModel value to be out of sync to re-run formatters
-
-          }
-        }
-
-      });
+      $scope.$watchCollection(ctrl.parserResult.source, ctrl.refreshItems);
 
       if (ctrl.multiple){
-        //Remove already selected items 
+        //Remove already selected items
         $scope.$watchCollection('$select.selected', function(selectedItems){
           var data = ctrl.parserResult.source($scope);
           if (!selectedItems.length) {
-            setItemsFn(data);            
+            ctrl.setItemsFn(data);
           }else{
             var filteredItems = data.filter(function(i) {return selectedItems.indexOf(i) < 0;});
-            setItemsFn(filteredItems);            
+            ctrl.setItemsFn(filteredItems);
           }
           ctrl.sizeSearchInput();
         });
@@ -308,7 +312,7 @@
     };
 
     ctrl.isDisabled = function(itemScope) {
-      
+
       if (!ctrl.open) return;
 
       var itemIndex = ctrl.items.indexOf(itemScope[ctrl.itemProperty]);
@@ -348,7 +352,7 @@
 
     // Closes the dropdown
     ctrl.close = function(skipFocusser) {
-      if (!ctrl.open) return;        
+      if (!ctrl.open) return;
       _resetSearchInput();
       ctrl.open = false;
       if (!ctrl.multiple){
@@ -388,7 +392,7 @@
       return ctrl.placeholder;
     };
 
-    var containerSizeWatch; 
+    var containerSizeWatch;
     ctrl.sizeSearchInput = function(){
       var input = _searchInput[0],
           container = _searchInput.parent().parent()[0];
@@ -411,6 +415,14 @@
           calculate();
         }
       }, 0, false);
+    };
+
+      // TODO: fix me Sudin
+    ctrl.noResultsMessage = function() {
+      if (ctrl.search.length < ctrl.minimumInputLength) {
+        return uiSelectConfig.locales[ctrl.locale].formatInputTooShort(ctrl.search, ctrl.minimumInputLength);
+      }
+      return uiSelectConfig.locales[ctrl.locale].formatNoMatches();
     };
 
     function _handleDropDownSelection(key) {
@@ -446,7 +458,7 @@
     // Handles selected options in "multiple" mode
     function _handleMatchSelection(key){
       var caretPosition = _getCaretPosition(_searchInput[0]),
-          length = ctrl.selected.length, 
+          length = ctrl.selected.length,
           // none  = -1,
           first = 0,
           last  = length-1,
@@ -469,7 +481,7 @@
             break;
           case KEY.RIGHT:
             // Open drop-down
-            if(!~ctrl.activeMatchIndex || curr === last){ 
+            if(!~ctrl.activeMatchIndex || curr === last){
               ctrl.activate();
               return false;
             }
@@ -492,7 +504,7 @@
               return curr;
             }
             else return false;
-        }      
+        }
       }
 
       newIndex = getNewActiveMatchIndex();
@@ -523,7 +535,7 @@
         if (!processed && ctrl.items.length > 0) {
           processed = _handleDropDownSelection(key);
         }
-        
+
         if (processed  && key != KEY.TAB) {
           //TODO Check si el tab selecciona aun correctamente
           //Crear test
@@ -629,7 +641,7 @@
 
         //From model --> view
         ngModel.$formatters.unshift(function (inputValue) {
-          var data = $select.parserResult.source (scope, { $select : {search:''}}), //Overwrite $search 
+          var data = $select.parserResult.source (scope, { $select : {search:''}}), //Overwrite $search
               locals = {},
               result;
           if (data){
@@ -681,7 +693,7 @@
         if(attrs.tabindex){
           //tabindex might be an expression, wait until it contains the actual value before we set the focusser tabindex
           attrs.$observe('tabindex', function(value) {
-            //If we are using multiple, add tabindex to the search input 
+            //If we are using multiple, add tabindex to the search input
             if($select.multiple){
               searchInput.attr("tabindex", value);
             } else {
@@ -736,7 +748,7 @@
             if (e.which === KEY.TAB || KEY.isControl(e) || KEY.isFunctionKey(e) || e.which === KEY.ESC || e.which == KEY.ENTER || e.which === KEY.BACKSPACE) {
               return;
             }
-            
+
             $select.activate(focusser.val()); //User pressed some regular key, so we pass it to the search input
             focusser.val('');
             scope.$digest();
@@ -748,7 +760,17 @@
 
         scope.$watch('searchEnabled', function() {
             var searchEnabled = scope.$eval(attrs.searchEnabled);
-            $select.searchEnabled = searchEnabled !== undefined ? searchEnabled : uiSelectConfig.searchEnabled;
+          $select.searchEnabled = searchEnabled !== undefined ? searchEnabled : true;
+        });
+
+        scope.$watch('minimumInputLength', function() {
+          var minimumInputLength = scope.$eval(attrs.minimumInputLength);
+          $select.minimumInputLength = minimumInputLength !== undefined ? minimumInputLength : uiSelectConfig.minimumInputLength;
+        });
+
+        scope.$watch('locale', function() {
+          var locale = scope.$eval(attrs.locale);
+          $select.locale = locale !== undefined ? locale : uiSelectConfig.locale;
         });
 
         attrs.$observe('disabled', function() {
@@ -865,7 +887,7 @@
         if (!tAttrs.repeat) throw uiSelectMinErr('repeat', "Expected 'repeat' expression.");
 
         return function link(scope, element, attrs, $select, transcludeFn) {
-          
+
           // var repeat = RepeatParser.parse(attrs.repeat);
           var groupByExp = attrs.groupBy;
 
@@ -894,10 +916,15 @@
 
           $compile(element, transcludeFn)(scope); //Passing current transcludeFn to be able to append elements correctly from uisTranscludeAppend
 
-          scope.$watch('$select.search', function(newValue) {
-            if(newValue && !$select.open && $select.multiple) $select.activate(false, true);
+          scope.$watch('$select.search', function(newValue, oldValue) {
+            if ($select.minimumInputLength > 0 && newValue !== oldValue) {
+              $select.refreshItems($select.parserResult.source(scope));
+            }
             $select.activeIndex = 0;
-            $select.refresh(attrs.refresh);
+            if ($select.search.length >= $select.minimumInputLength) {
+              if (newValue && !$select.open && $select.multiple) $select.activate(false, true);
+              $select.refresh(attrs.refresh);
+            }
           });
 
           attrs.$observe('refreshDelay', function() {

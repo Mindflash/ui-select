@@ -417,12 +417,12 @@
       }, 0, false);
     };
 
-      // TODO: fix me Sudin
     ctrl.noResultsMessage = function() {
       if (ctrl.search.length < ctrl.minimumInputLength) {
-        return uiSelectConfig.locales[ctrl.locale].formatInputTooShort(ctrl.search, ctrl.minimumInputLength);
+	      var n = ctrl.minimumInputLength - ctrl.search.length;
+        return "Please enter " + n + " or more character" + (n == 1 ? "" : "s");;
       }
-      return uiSelectConfig.locales[ctrl.locale].formatNoMatches();
+      return "No matches found";
     };
 
     function _handleDropDownSelection(key) {
